@@ -90,6 +90,18 @@ async def handle_connection(websocket):
         print(f"Disconnected (received {count}, rejected {rejected})")
 
 
+async def _send_to_client(client, message):
+    """Send to one client, swallowing a disconnect that races with this
+    broadcast -- that client's own handle_connection() notices the
+    close and cleans it out of CONNECTED_CLIENTS on its own; a command
+    arriving in the same instant a browser tab closes shouldn't take
+    the whole process down."""
+    try:
+        await client.send(message)
+    except websockets.exceptions.ConnectionClosed:
+        pass
+
+
 async def send_command(name):
     """Look up `name` in COMMANDS and send it to every connected
     extension. Unknown names and a missing connection are both reported
@@ -104,7 +116,7 @@ async def send_command(name):
         return
 
     message = json.dumps({"type": "robot-command", **fields})
-    await asyncio.gather(*(client.send(message) for client in CONNECTED_CLIENTS))
+    await asyncio.gather(*(_send_to_client(client, message) for client in CONNECTED_CLIENTS))
     print(f"sent: {name} -> {fields}")
 
 

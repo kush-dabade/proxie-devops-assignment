@@ -17,6 +17,22 @@ let lastLog = 0;
 let sendFailures = 0;
 let lastSendFailureLog = 0;
 
+// Shared by both the sync-throw and async-rejection failure paths below —
+// same throttled reporting either way, just two different ways Chrome can
+// signal "the service worker didn't get this."
+function reportSendFailure() {
+  sendFailures += 1;
+  const t = performance.now();
+  if (t - lastSendFailureLog >= 2000) {
+    console.warn(
+      `[proxie-bridge] chrome.runtime.sendMessage failing (${sendFailures} since last log) ` +
+      `— if the extension was just reloaded, refresh this page to reconnect it`
+    );
+    sendFailures = 0;
+    lastSendFailureLog = t;
+  }
+}
+
 window.addEventListener("message", (event) => {
   if (event.source !== window || event.data?.type !== "robot-state") return;
 
@@ -33,19 +49,24 @@ window.addEventListener("message", (event) => {
   // The actual bridge forward is NOT throttled. index.html emits state
   // once per animation frame, and Phase 2's whole point is preserving
   // that full-rate stream end to end, not a sampled/throttled version.
-  chrome.runtime.sendMessage({ type: "robot-state", x, z, rotationY }).catch(() => {
+  try {
     // The service worker can be briefly unreachable right after an
-    // extension reload/wake (or if it was discarded and is restarting).
-    // Don't spam the console per dropped frame — surface it as a
-    // periodic count instead.
-    sendFailures += 1;
-    const t = performance.now();
-    if (t - lastSendFailureLog >= 2000) {
-      console.warn(`[proxie-bridge] chrome.runtime.sendMessage failing (${sendFailures} since last log)`);
-      sendFailures = 0;
-      lastSendFailureLog = t;
-    }
-  });
+    // extension reload/wake (or if it was discarded and is restarting)
+    // — that surfaces as a rejected promise, handled by .catch below.
+    //
+    // A *reloaded* extension is different: this content script becomes
+    // orphaned (its extension context is invalidated), and in that case
+    // chrome.runtime.sendMessage throws synchronously instead of
+    // returning a rejected promise. Without this try/catch that throw
+    // would escape this listener as an uncaught exception on every
+    // single animation frame until the page is reloaded. It doesn't
+    // crash the page (each message-event listener invocation is
+    // isolated by the browser), but it's console spam standing in for
+    // what should be the same graceful "can't reach the bridge" report.
+    chrome.runtime.sendMessage({ type: "robot-state", x, z, rotationY }).catch(reportSendFailure);
+  } catch {
+    reportSendFailure();
+  }
 });
 
 // --- (b) service worker -> page: robot-command ---------------------------
