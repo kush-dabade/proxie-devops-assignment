@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Node / tooling
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build / coverage
+dist/
+build/
+coverage/
+
+# Demo artifacts
+*.mp4
+*.mov
+*.gif
