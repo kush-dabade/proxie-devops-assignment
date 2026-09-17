@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Proxie Robot Bridge — Phase 1 Spike",
+  "name": "Proxie Robot Bridge",
   "version": "0.1.0",
-  "description": "Phase 2: content script forwards live robot-state to a service worker, which streams it to a local Python process over WebSocket.",
+  "description": "Bridges the hosted robot app to a local Python process: streams live robot-state to Python over WebSocket, and relays robot-command messages from Python back into the page.",
   "content_scripts": [
     {
       "matches": ["http://localhost:5500/*"],
@@ -12,5 +12,6 @@
   ],
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "permissions": ["tabs"]
 }

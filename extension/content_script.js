@@ -1,13 +1,12 @@
-// Phase 1 + Phase 2: this content script bridges page <-> extension.
-// It never touches the network itself — background.js (the service
-// worker) owns the WebSocket to Python. This file's only jobs are:
-// (a) receive robot-state from the page and hand it to the service
-// worker, and (b) receive commands from the extension and post them
-// into the page (Phase 3 will use (b); Phase 1's test of it stays below).
+// Phase 1 + Phase 2 + Phase 3: this content script bridges page <->
+// extension. It never touches the network itself — background.js (the
+// service worker) owns the WebSocket to Python. This file's only jobs are:
+//   (a) receive robot-state from the page and hand it to the service worker
+//   (b) receive robot-command from the service worker and post it into the page
 
 console.log("[proxie-bridge] content script loaded on", location.href);
 
-// --- Test 1 (Phase 1) + Phase 2 forwarding ------------------------------
+// --- (a) page -> service worker: robot-state ----------------------------
 // index.html calls window.postMessage({ type: "robot-state", ... }, "*")
 // every animation frame (~60/sec). Content scripts execute in an
 // "isolated world" (a separate JS heap from the page's own scripts) but
@@ -49,34 +48,21 @@ window.addEventListener("message", (event) => {
   });
 });
 
-// --- Test 2 & 3: extension -> browser, and the e.source check ----------
+// --- (b) service worker -> page: robot-command ---------------------------
 // index.html's own command listener is:
 //   if (e.source !== window || e.data?.type !== "robot-command") return;
 // It checks e.source, not e.origin. A content script's `window` is the
 // same browsing-context window as the page (isolated worlds isolate JS
 // state, not window/context identity), so window.postMessage(...) called
-// from here is expected to satisfy e.source === window on the page's side.
+// from here satisfies e.source === window on the page's side — this is
+// the exact mechanism Phase 1 proved with a hardcoded test command; now
+// the command comes from background.js (ultimately from Python) instead.
 //
-// We can't instrument index.html directly to prove that without modifying
-// the supplied file, so the proof here is behavioral: this sends a
-// forward command with zero keyboard involvement. If the robot visibly
-// moves forward on its own, the e.source check passed. If it were
-// failing, this would be a silent no-op with no error either way — so
-// "did the robot move" is the whole test.
-console.log("[proxie-bridge] sending an automated forward command in 3s — keep hands off the keyboard");
-
-setTimeout(() => {
-  console.log("[proxie-bridge] TEST: posting robot-command forward=true");
-  window.postMessage(
-    { type: "robot-command", forward: true, back: false, left: false, right: false, run: false },
-    "*"
-  );
-
-  setTimeout(() => {
-    console.log("[proxie-bridge] TEST: posting robot-command forward=false (stop)");
-    window.postMessage(
-      { type: "robot-command", forward: false, back: false, left: false, right: false, run: false },
-      "*"
-    );
-  }, 1500);
-}, 3000);
+// background.js delivers commands here via chrome.tabs.sendMessage(tabId,
+// ...), which a content script receives through the same onMessage API
+// used for its own content-script -> background messages.
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type !== "robot-command") return;
+  console.log("[proxie-bridge] forwarding robot-command into page:", message);
+  window.postMessage(message, "*");
+});
