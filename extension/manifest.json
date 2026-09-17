@@ -5,7 +5,7 @@
   "description": "Bridges the hosted robot app to a local Python process: streams live robot-state to Python over WebSocket, and relays robot-command messages from Python back into the page.",
   "content_scripts": [
     {
-      "matches": ["http://localhost:5500/*"],
+      "matches": ["https://kush-dabade.github.io/proxie-devops-assignment/*"],
       "js": ["content_script.js"],
       "run_at": "document_idle"
     }

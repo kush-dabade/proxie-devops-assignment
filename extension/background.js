@@ -11,7 +11,7 @@ const RECONNECT_MAX_MS = 10000;
 
 // Must match manifest.json's content_scripts.matches — used to find which
 // open tab(s) a command arriving from Python should be delivered to.
-const TAB_MATCH_PATTERN = "http://localhost:5500/*";
+const TAB_MATCH_PATTERN = "https://kush-dabade.github.io/proxie-devops-assignment/*";
 
 const COMMAND_KEYS = ["forward", "back", "left", "right", "run"];
 
